@@ -3,6 +3,7 @@ import re
 import json
 import dataclasses
 import typing
+import types
 from enum import Enum
 
 from llama_cpp.llama_grammar import LlamaGrammar
@@ -26,6 +27,34 @@ def to_json_schema(datacls):
             return {"type": "array", "items": {}}
         elif field_type == set:
             return {"type": "array", "uniqueItems": True, "items": {}}
+        elif field_type == dict:
+            return {
+                "type": "object",
+                "additionalProperties": get_type(field_type.__args__[1]),
+            }
+        elif field_type == list:
+            return {
+                "type": "array",
+                "items": {"type": "string"},
+            }
+        elif isinstance(field_type, types.GenericAlias):
+            origin = field_type.__origin__
+            if origin == list:
+                return {
+                    "type": "array",
+                    "items": get_type(field_type.__args__[0]),
+                }
+            if origin == dict:
+                return {
+                    "type": "object",
+                    "additionalProperties": get_type(field_type.__args__[1]),
+                }
+            if origin == set:
+                return {
+                    "type": "array",
+                    "uniqueItems": True,
+                    "items": get_type(field_type.__args__[0]),
+                }
         elif isinstance(field_type, typing._GenericAlias):
             if field_type._name == "List":
                 return {
@@ -45,6 +74,7 @@ def to_json_schema(datacls):
                 "enum": list(field_type.__members__.keys()),
             }
         else:
+            print(f"Warning: Defaulting to generic object for {field_type}")
             return {"type": "object"}
 
     properties = {}
